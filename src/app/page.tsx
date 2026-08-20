@@ -1,13 +1,21 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { KiteSetup } from "@/app/kite-setup";
 import { getCurrentUser } from "@/lib/auth";
+import { getKiteConnectionStatus } from "@/lib/kite";
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: PageProps<"/">) {
   const currentUser = await getCurrentUser();
 
   if (!currentUser) {
     redirect("/sign-in");
   }
+
+  const kiteStatus = await getKiteConnectionStatus();
+  const params = await searchParams;
+  const kiteFlash = typeof params.kite === "string" ? params.kite : undefined;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
@@ -17,6 +25,23 @@ export default async function Home() {
           Welcome, {currentUser.name}
         </h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{currentUser.email}</p>
+        {kiteStatus ? (
+          <KiteSetup
+            hasCredentials={kiteStatus.hasCredentials}
+            apiKey={kiteStatus.apiKey}
+            isAuthenticated={kiteStatus.isAuthenticated}
+            accessTokenExpiresLabel={
+              kiteStatus.accessTokenExpiresAt
+                ? kiteStatus.accessTokenExpiresAt.toLocaleString("en-IN", {
+                    timeZone: "Asia/Kolkata",
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })
+                : null
+            }
+            kiteStatus={kiteFlash}
+          />
+        ) : null}
         <Link
           href="/sign-out"
           className="mt-8 inline-flex h-11 items-center rounded-lg border border-zinc-200 px-4 text-sm font-medium text-zinc-950 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-50 dark:hover:bg-zinc-900"

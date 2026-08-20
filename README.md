@@ -59,6 +59,16 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Sessions stay active until you sign out.
 
+## Kite
+
+After sign-in, save your Kite API key and API secret, then authenticate with Zerodha. Register this redirect URL in the Kite developer console:
+
+| Purpose | URL |
+| --- | --- |
+| Login callback | [/kite/callback](http://localhost:3000/kite/callback) |
+
+Access tokens are stored per user and treated as expired at 6:00 AM IST. Re-authenticate after that to place trades.
+
 ## Scripts
 
 ```bash
