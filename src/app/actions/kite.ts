@@ -13,7 +13,11 @@ import type {
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getAuthenticatedKiteClient, kiteErrorMessage } from "@/lib/kite";
+import {
+  getAuthenticatedKiteClient,
+  initiateHoldingsAuth,
+  kiteErrorMessage,
+} from "@/lib/kite";
 import { prisma } from "@/lib/prisma";
 import { getYahooLastPrice } from "@/lib/yahoo-ltp";
 
@@ -21,9 +25,12 @@ export type SaveKiteCredentialsState = {
   errors?: {
     apiKey?: string[];
     apiSecret?: string[];
+    tpin?: string[];
   };
   message?: string;
 };
+
+const TPIN_PATTERN = /^\d{6}$/;
 
 function readApiKey(formData: FormData) {
   return String(formData.get("apiKey") ?? "").trim();
@@ -45,6 +52,7 @@ export async function saveKiteCredentials(
 
   const apiKey = readApiKey(formData);
   const apiSecret = readApiSecret(formData);
+  const tpin = String(formData.get("tpin") ?? "").trim();
   const errors: SaveKiteCredentialsState["errors"] = {};
 
   if (apiKey.length < 4) {
@@ -55,7 +63,11 @@ export async function saveKiteCredentials(
     errors.apiSecret = ["Enter your Kite API secret."];
   }
 
-  if (errors.apiKey || errors.apiSecret) {
+  if (tpin && !TPIN_PATTERN.test(tpin)) {
+    errors.tpin = ["CDSL TPIN must be 6 digits."];
+  }
+
+  if (errors.apiKey || errors.apiSecret || errors.tpin) {
     return { errors };
   }
 
@@ -70,6 +82,7 @@ export async function saveKiteCredentials(
       data: {
         kiteApiKey: apiKey,
         kiteApiSecret: apiSecret,
+        ...(tpin ? { cdslTpin: tpin } : {}),
         ...(existing?.kiteApiKey !== apiKey
           ? { kiteAccessToken: null, kiteAccessTokenExpiresAt: null }
           : {}),
@@ -100,6 +113,39 @@ export async function startKiteLogin() {
 
   const kite = new KiteConnect({ api_key: user.kiteApiKey });
   redirect(kite.getLoginURL());
+}
+
+const ISIN_PATTERN = /^[A-Z0-9]{12}$/;
+
+export async function startEdis(formData: FormData) {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect("/sign-in");
+  }
+
+  const isin = readString(formData, "isin").toUpperCase();
+  const rawQuantity = readString(formData, "quantity");
+  const quantity = Number(rawQuantity);
+  let instruments: { isin: string; quantity: number }[] | undefined;
+
+  if (isin || rawQuantity) {
+    if (!ISIN_PATTERN.test(isin) || !Number.isInteger(quantity) || quantity < 1) {
+      redirect("/?edis=invalid");
+    }
+
+    instruments = [{ isin, quantity }];
+  }
+
+  let redirectUrl: string;
+
+  try {
+    ({ redirectUrl } = await initiateHoldingsAuth(instruments));
+  } catch {
+    redirect("/?edis=failed");
+  }
+
+  redirect(redirectUrl);
 }
 
 export type PlaceOrderState = {

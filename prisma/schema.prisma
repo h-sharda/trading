@@ -21,6 +21,7 @@ model User {
   kiteApiSecret            String?
   kiteAccessToken          String?
   kiteAccessTokenExpiresAt DateTime?
+  cdslTpin                 String?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   sessions                 Session[]

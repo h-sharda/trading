@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { EdisForm } from "@/app/edis-form";
 import {
   saveKiteCredentials,
   startKiteLogin,
@@ -17,10 +18,12 @@ const initialSaveState: SaveKiteCredentialsState | undefined = undefined;
 
 type KiteSetupProps = {
   hasCredentials: boolean;
+  hasTpin: boolean;
   apiKey: string | null;
   isAuthenticated: boolean;
   accessTokenExpiresLabel: string | null;
   kiteStatus?: string;
+  edisStatus?: string;
 };
 
 const kiteStatusMessages: Record<string, string> = {
@@ -30,12 +33,19 @@ const kiteStatusMessages: Record<string, string> = {
   "missing-credentials": "Save your Kite API key and secret before authenticating.",
 };
 
+const edisStatusMessages: Record<string, string> = {
+  failed: "Could not start eDIS. Check that Kite is authenticated and try again.",
+  invalid: "Choose a valid holding quantity to authorise.",
+};
+
 export function KiteSetup({
   hasCredentials,
+  hasTpin,
   apiKey,
   isAuthenticated,
   accessTokenExpiresLabel,
   kiteStatus,
+  edisStatus,
 }: KiteSetupProps) {
   const [saveState, saveAction, isSaving] = useActionState(
     saveKiteCredentials,
@@ -43,6 +53,7 @@ export function KiteSetup({
   );
   const statusMessage = kiteStatus ? kiteStatusMessages[kiteStatus] : undefined;
   const isErrorStatus = kiteStatus && kiteStatus !== "connected";
+  const edisMessage = edisStatus ? edisStatusMessages[edisStatus] : undefined;
 
   return (
     <section>
@@ -66,6 +77,8 @@ export function KiteSetup({
           {statusMessage}
         </p>
       ) : null}
+
+      {edisMessage ? <p className={`mt-4 ${AUTH_ERROR_CLASS_NAME}`}>{edisMessage}</p> : null}
 
       <form action={saveAction} className="mt-6 flex w-full flex-col gap-5">
         <div className="flex flex-col gap-2">
@@ -109,6 +122,31 @@ export function KiteSetup({
           ))}
         </div>
 
+        <div className="flex flex-col gap-2">
+          <label htmlFor="tpin" className={AUTH_LABEL_CLASS_NAME}>
+            CDSL TPIN
+          </label>
+          <input
+            id="tpin"
+            name="tpin"
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={6}
+            placeholder={hasTpin ? "Saved. Enter 6 digits to replace" : "6-digit CDSL TPIN"}
+            className={AUTH_INPUT_CLASS_NAME}
+          />
+          <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+            Optional. Stored on your account only. CDSL still asks for it on their
+            page during eDIS — Kite cannot submit TPIN for you.
+          </p>
+          {saveState?.errors?.tpin?.map((error) => (
+            <p key={error} className={AUTH_ERROR_CLASS_NAME}>
+              {error}
+            </p>
+          ))}
+        </div>
+
         {saveState?.message ? (
           <p className={AUTH_ERROR_CLASS_NAME}>{saveState.message}</p>
         ) : null}
@@ -130,6 +168,14 @@ export function KiteSetup({
                   Access token valid until {accessTokenExpiresLabel} IST
                 </p>
               ) : null}
+              <div className="mt-4">
+                <EdisForm />
+                <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                  Opens Zerodha / CDSL so you can authorise demat holdings for CNC
+                  sells. Skip this if DDPI is already active. Authorisation lasts
+                  until 5:30 PM IST.
+                </p>
+              </div>
             </div>
           ) : (
             <form action={startKiteLogin}>

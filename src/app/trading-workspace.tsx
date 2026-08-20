@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { EdisForm } from "@/app/edis-form";
 import { GttList } from "@/app/gtt-list";
 import { PlaceOrderForm } from "@/app/place-order-form";
 import type { GttDto } from "@/lib/gtt";
-import type { HoldingDto } from "@/lib/holding";
+import { holdingNeedsEdis, type HoldingDto } from "@/lib/holding";
 
 const inr = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -62,6 +63,11 @@ export function TradingWorkspace({
             <h2 className="mt-2 text-xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
               Holdings
             </h2>
+            {holdings.some(holdingNeedsEdis) ? (
+              <div className="mt-3">
+                <EdisForm compact label="Authorize all eDIS" />
+              </div>
+            ) : null}
           </div>
           {holdings.length > 0 ? (
             <dl className="flex flex-wrap gap-6 text-sm">
@@ -98,6 +104,7 @@ export function TradingWorkspace({
                 <tr className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                   <th className="py-2 pr-4 font-medium">Symbol</th>
                   <th className="py-2 pr-4 font-medium">Qty</th>
+                  <th className="py-2 pr-4 font-medium">eDIS</th>
                   <th className="py-2 pr-4 font-medium">Avg</th>
                   <th className="py-2 pr-4 font-medium">LTP</th>
                   <th className="py-2 pr-4 font-medium">P&amp;L</th>
@@ -127,6 +134,19 @@ export function TradingWorkspace({
                         </span>
                       ) : null}
                     </td>
+                    <td className="py-3 pr-4 text-zinc-600 dark:text-zinc-400">
+                      {holdingNeedsEdis(holding) ? (
+                        <span>
+                          {holding.authorisedQuantity}/{holding.realisedQuantity}
+                        </span>
+                      ) : holding.realisedQuantity > 0 ? (
+                        <span className="text-emerald-700 dark:text-emerald-400">
+                          {holding.authorisedQuantity} ok
+                        </span>
+                      ) : (
+                        <span className="text-xs">T1 only</span>
+                      )}
+                    </td>
                     <td className="py-3 pr-4 text-zinc-950 dark:text-zinc-50">
                       {inr.format(holding.averagePrice)}
                     </td>
@@ -143,13 +163,22 @@ export function TradingWorkspace({
                       </span>
                     </td>
                     <td className="py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setSelected(holding)}
-                        className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-50 dark:hover:bg-zinc-900"
-                      >
-                        Trade
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        {holdingNeedsEdis(holding) ? (
+                          <EdisForm
+                            compact
+                            isin={holding.isin}
+                            quantity={holding.realisedQuantity}
+                          />
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => setSelected(holding)}
+                          className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                        >
+                          Trade
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

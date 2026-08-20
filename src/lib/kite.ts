@@ -54,6 +54,7 @@ export async function getKiteConnectionStatus() {
       kiteApiSecret: true,
       kiteAccessToken: true,
       kiteAccessTokenExpiresAt: true,
+      cdslTpin: true,
     },
   });
 
@@ -63,6 +64,7 @@ export async function getKiteConnectionStatus() {
 
   return {
     hasCredentials: Boolean(user.kiteApiKey && user.kiteApiSecret),
+    hasTpin: Boolean(user.cdslTpin),
     apiKey: user.kiteApiKey,
     isAuthenticated: isKiteAccessTokenValid(
       user.kiteAccessToken,
@@ -72,7 +74,13 @@ export async function getKiteConnectionStatus() {
   };
 }
 
-export async function getAuthenticatedKiteClient() {
+type KiteSession = {
+  kite: KiteConnect;
+  apiKey: string;
+  accessToken: string;
+};
+
+export async function getKiteSession(): Promise<KiteSession> {
   const currentUser = await getCurrentUser();
 
   if (!currentUser) {
@@ -98,7 +106,53 @@ export async function getAuthenticatedKiteClient() {
 
   const kite = new KiteConnect({ api_key: user.kiteApiKey });
   kite.setAccessToken(user.kiteAccessToken as string);
+  return {
+    kite,
+    apiKey: user.kiteApiKey,
+    accessToken: user.kiteAccessToken as string,
+  };
+}
+
+export async function getAuthenticatedKiteClient() {
+  const { kite } = await getKiteSession();
   return kite;
+}
+
+export async function initiateHoldingsAuth(
+  instruments?: { isin: string; quantity: number }[],
+) {
+  const { apiKey, accessToken } = await getKiteSession();
+  const body = new URLSearchParams();
+
+  for (const instrument of instruments ?? []) {
+    body.append("isin", instrument.isin);
+    body.append("quantity", String(instrument.quantity));
+  }
+
+  const response = await fetch("https://api.kite.trade/portfolio/holdings/authorise", {
+    method: "POST",
+    headers: {
+      "X-Kite-Version": "3",
+      Authorization: `token ${apiKey}:${accessToken}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+
+  const payload = (await response.json()) as {
+    status?: string;
+    message?: string;
+    data?: { request_id?: string };
+  };
+
+  if (payload.status !== "success" || !payload.data?.request_id) {
+    throw new Error(payload.message || "Unable to start eDIS authorisation.");
+  }
+
+  return {
+    requestId: payload.data.request_id,
+    redirectUrl: `https://kite.zerodha.com/connect/portfolio/authorise/holdings/${apiKey}/${payload.data.request_id}`,
+  };
 }
 
 export type HoldingsResult =
@@ -115,9 +169,13 @@ export async function getHoldings(): Promise<HoldingsResult> {
         tradingsymbol: holding.tradingsymbol,
         exchange: holding.exchange,
         product: holding.product,
+        isin: holding.isin,
         quantity: holding.quantity,
         t1Quantity: holding.t1_quantity,
         usedQuantity: holding.used_quantity,
+        realisedQuantity: holding.realised_quantity,
+        authorisedQuantity: holding.authorised_quantity,
+        authorisedDate: holding.authorised_date,
         averagePrice: holding.average_price,
         lastPrice: holding.last_price,
         pnl: holding.pnl,

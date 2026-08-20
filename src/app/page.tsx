@@ -17,6 +17,7 @@ export default async function Home({
   const kiteStatus = await getKiteConnectionStatus();
   const params = await searchParams;
   const kiteFlash = typeof params.kite === "string" ? params.kite : undefined;
+  const edisFlash = typeof params.edis === "string" ? params.edis : undefined;
   const [holdingsResult, gttsResult] = kiteStatus?.isAuthenticated
     ? await Promise.all([getHoldings(), getGtts()])
     : [null, null];
@@ -53,6 +54,7 @@ export default async function Home({
           <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
             <KiteSetup
               hasCredentials={kiteStatus.hasCredentials}
+              hasTpin={kiteStatus.hasTpin}
               apiKey={kiteStatus.apiKey}
               isAuthenticated={kiteStatus.isAuthenticated}
               accessTokenExpiresLabel={
@@ -65,6 +67,7 @@ export default async function Home({
                   : null
               }
               kiteStatus={kiteFlash}
+              edisStatus={edisFlash}
             />
           </div>
         ) : null}
