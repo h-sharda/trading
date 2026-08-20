@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { KiteSetup } from "@/app/kite-setup";
 import { TradingWorkspace } from "@/app/trading-workspace";
 import { getCurrentUser } from "@/lib/auth";
-import { getHoldings, getKiteConnectionStatus } from "@/lib/kite";
+import { getGtts, getHoldings, getKiteConnectionStatus } from "@/lib/kite";
 
 export default async function Home({
   searchParams,
@@ -17,7 +17,9 @@ export default async function Home({
   const kiteStatus = await getKiteConnectionStatus();
   const params = await searchParams;
   const kiteFlash = typeof params.kite === "string" ? params.kite : undefined;
-  const holdingsResult = kiteStatus?.isAuthenticated ? await getHoldings() : null;
+  const [holdingsResult, gttsResult] = kiteStatus?.isAuthenticated
+    ? await Promise.all([getHoldings(), getGtts()])
+    : [null, null];
 
   return (
     <div className="flex flex-1 flex-col px-6 py-10">
@@ -38,10 +40,12 @@ export default async function Home({
           </Link>
         </div>
 
-        {kiteStatus?.isAuthenticated && holdingsResult ? (
+        {kiteStatus?.isAuthenticated && holdingsResult && gttsResult ? (
           <TradingWorkspace
             holdings={holdingsResult.holdings}
             holdingsError={holdingsResult.error}
+            gtts={gttsResult.gtts}
+            gttsError={gttsResult.error}
           />
         ) : null}
 

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { GttList } from "@/app/gtt-list";
 import { PlaceOrderForm } from "@/app/place-order-form";
+import type { GttDto } from "@/lib/gtt";
 import type { HoldingDto } from "@/lib/holding";
 
 const inr = new Intl.NumberFormat("en-IN", {
@@ -30,9 +32,16 @@ function signedClass(value: number) {
 type TradingWorkspaceProps = {
   holdings: HoldingDto[];
   holdingsError?: string;
+  gtts: GttDto[];
+  gttsError?: string;
 };
 
-export function TradingWorkspace({ holdings, holdingsError }: TradingWorkspaceProps) {
+export function TradingWorkspace({
+  holdings,
+  holdingsError,
+  gtts,
+  gttsError,
+}: TradingWorkspaceProps) {
   const [selected, setSelected] = useState<HoldingDto | null>(null);
   const invested = holdings.reduce(
     (sum, holding) => sum + holding.averagePrice * holding.quantity,
@@ -158,6 +167,10 @@ export function TradingWorkspace({ holdings, holdingsError }: TradingWorkspacePr
         }
         defaultHolding={selected}
       />
+
+      <div className="xl:col-span-2">
+        <GttList gtts={gtts} error={gttsError} />
+      </div>
     </div>
   );
 }

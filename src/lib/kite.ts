@@ -3,6 +3,7 @@ import "server-only";
 import { KiteConnect } from "kiteconnect";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { GttDto } from "@/lib/gtt";
 import type { HoldingDto } from "@/lib/holding";
 
 const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
@@ -128,6 +129,42 @@ export async function getHoldings(): Promise<HoldingsResult> {
     return {
       holdings: [],
       error: kiteErrorMessage(error, "Unable to load holdings."),
+    };
+  }
+}
+
+export type GttsResult =
+  | { gtts: GttDto[]; error?: undefined }
+  | { gtts: GttDto[]; error: string };
+
+export async function getGtts(): Promise<GttsResult> {
+  try {
+    const kite = await getAuthenticatedKiteClient();
+    const triggers = await kite.getGTTs();
+
+    return {
+      gtts: triggers.map((trigger) => ({
+        id: trigger.id,
+        type: trigger.type,
+        status: trigger.status,
+        tradingsymbol: trigger.condition.tradingsymbol,
+        exchange: trigger.condition.exchange,
+        lastPrice: trigger.condition.last_price,
+        triggerValues: trigger.condition.trigger_values,
+        expiresAt: trigger.expires_at,
+        orders: trigger.orders.map((order) => ({
+          transactionType: order.transaction_type,
+          quantity: order.quantity,
+          product: order.product,
+          orderType: order.order_type,
+          price: order.price,
+        })),
+      })),
+    };
+  } catch (error) {
+    return {
+      gtts: [],
+      error: kiteErrorMessage(error, "Unable to load GTTs."),
     };
   }
 }

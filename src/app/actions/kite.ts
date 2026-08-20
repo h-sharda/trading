@@ -6,6 +6,7 @@ import type {
   OrderType,
   Product,
   TransactionType,
+  TriggerType,
   Validity,
   Variety,
 } from "kiteconnect";
@@ -106,9 +107,12 @@ export type PlaceOrderState = {
     quantity?: string[];
     price?: string[];
     triggerPrice?: string[];
+    targetPrice?: string[];
+    slPrice?: string[];
   };
   message?: string;
   orderId?: string;
+  triggerId?: number;
 };
 
 const VARIETIES = new Set<Variety>(["regular", "amo"]);
@@ -117,9 +121,39 @@ const TRANSACTION_TYPES = new Set<TransactionType>(["BUY", "SELL"]);
 const PRODUCTS = new Set<Product>(["CNC", "MIS", "NRML"]);
 const ORDER_TYPES = new Set<OrderType>(["MARKET", "LIMIT", "SL", "SL-M"]);
 const VALIDITIES = new Set<Validity>(["DAY", "IOC"]);
+const GTT_TYPES = new Set<TriggerType>(["single", "two-leg"]);
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
+}
+
+function positivePrice(value: number) {
+  return Number.isFinite(value) && value > 0;
+}
+
+async function lastTradedPrice(exchange: Exchanges, tradingsymbol: string) {
+  const kite = await getAuthenticatedKiteClient();
+  const instrument = `${exchange}:${tradingsymbol}`;
+  const quote = await kite.getLTP(instrument);
+  const lastPrice =
+    quote[instrument]?.last_price ?? Object.values(quote)[0]?.last_price;
+
+  if (!positivePrice(lastPrice)) {
+    throw new Error(`Could not fetch last price for ${instrument}.`);
+  }
+
+  return { kite, lastPrice };
+}
+
+export async function submitTrade(
+  state: PlaceOrderState | undefined,
+  formData: FormData,
+): Promise<PlaceOrderState> {
+  if (readString(formData, "variety") === "gtt") {
+    return placeGtt(state, formData);
+  }
+
+  return placeOrder(state, formData);
 }
 
 export async function placeOrder(
@@ -209,5 +243,160 @@ export async function placeOrder(
     return { orderId: result.order_id, message: `Order placed: ${result.order_id}` };
   } catch (error) {
     return { message: kiteErrorMessage(error, "Unable to place the order. Try again.") };
+  }
+}
+
+export async function placeGtt(
+  _state: PlaceOrderState | undefined,
+  formData: FormData,
+): Promise<PlaceOrderState> {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect("/sign-in");
+  }
+
+  const triggerType = readString(formData, "gttType") as TriggerType;
+  const exchange = readString(formData, "exchange").toUpperCase() as Exchanges;
+  const tradingsymbol = readString(formData, "tradingsymbol").toUpperCase();
+  const transactionType = readString(formData, "transactionType") as TransactionType;
+  const product = readString(formData, "product") as Product;
+  const quantity = Number(readString(formData, "quantity"));
+  const price = Number(readString(formData, "price"));
+  const triggerPrice = Number(readString(formData, "triggerPrice"));
+  const slTrigger = Number(readString(formData, "slTrigger"));
+  const slPrice = Number(readString(formData, "slPrice"));
+  const targetTrigger = Number(readString(formData, "targetTrigger"));
+  const targetPrice = Number(readString(formData, "targetPrice"));
+  const errors: PlaceOrderState["errors"] = {};
+
+  if (!GTT_TYPES.has(triggerType)) {
+    return { message: "Choose Single or OCO GTT." };
+  }
+
+  if (!EXCHANGES.has(exchange)) {
+    return { message: "Choose a valid exchange." };
+  }
+
+  if (!TRANSACTION_TYPES.has(transactionType)) {
+    return { message: "Choose Buy or Sell." };
+  }
+
+  if (product !== "CNC" && product !== "NRML") {
+    return { message: "GTT only supports CNC or NRML." };
+  }
+
+  if (!tradingsymbol) {
+    errors.tradingsymbol = ["Enter a trading symbol."];
+  }
+
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    errors.quantity = ["Quantity must be a whole number greater than 0."];
+  }
+
+  if (triggerType === "single") {
+    if (!positivePrice(triggerPrice)) {
+      errors.triggerPrice = ["Enter a GTT trigger price."];
+    }
+
+    if (!positivePrice(price)) {
+      errors.price = ["Enter a limit price for the GTT order."];
+    }
+  } else {
+    if (!positivePrice(slTrigger) || !positivePrice(slPrice)) {
+      errors.slPrice = ["Enter stop-loss trigger and limit prices."];
+    }
+
+    if (!positivePrice(targetTrigger) || !positivePrice(targetPrice)) {
+      errors.targetPrice = ["Enter target trigger and limit prices."];
+    }
+  }
+
+  if (
+    errors.tradingsymbol ||
+    errors.quantity ||
+    errors.price ||
+    errors.triggerPrice ||
+    errors.slPrice ||
+    errors.targetPrice
+  ) {
+    return { errors };
+  }
+
+  try {
+    const { kite, lastPrice } = await lastTradedPrice(exchange, tradingsymbol);
+    const result = await kite.placeGTT({
+      trigger_type: triggerType,
+      exchange,
+      tradingsymbol,
+      last_price: lastPrice,
+      trigger_values:
+        triggerType === "single" ? [triggerPrice] : [slTrigger, targetTrigger],
+      orders:
+        triggerType === "single"
+          ? [
+              {
+                transaction_type: transactionType,
+                quantity,
+                product,
+                order_type: "LIMIT",
+                price,
+              },
+            ]
+          : [
+              {
+                transaction_type: transactionType,
+                quantity,
+                product,
+                order_type: "LIMIT",
+                price: slPrice,
+              },
+              {
+                transaction_type: transactionType,
+                quantity,
+                product,
+                order_type: "LIMIT",
+                price: targetPrice,
+              },
+            ],
+    });
+
+    revalidatePath("/");
+    return {
+      triggerId: result.trigger_id,
+      message: `GTT placed: ${result.trigger_id}`,
+    };
+  } catch (error) {
+    return { message: kiteErrorMessage(error, "Unable to place the GTT. Try again.") };
+  }
+}
+
+export type CancelGttState = {
+  message?: string;
+};
+
+export async function cancelGtt(
+  _state: CancelGttState | undefined,
+  formData: FormData,
+): Promise<CancelGttState> {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect("/sign-in");
+  }
+
+  const triggerId = Number(readString(formData, "triggerId"));
+
+  if (!Number.isInteger(triggerId) || triggerId < 1) {
+    return { message: "Invalid GTT id." };
+  }
+
+  try {
+    const kite = await getAuthenticatedKiteClient();
+    await kite.deleteGTT(triggerId);
+    revalidatePath("/");
+    return { message: `GTT ${triggerId} cancelled.` };
+  } catch (error) {
+    return { message: kiteErrorMessage(error, "Unable to cancel the GTT.") };
   }
 }
