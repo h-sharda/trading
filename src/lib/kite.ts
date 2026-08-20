@@ -1,6 +1,7 @@
 import "server-only";
 
 import { KiteConnect } from "kiteconnect";
+import type { Connect } from "kiteconnect";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { GttDto } from "@/lib/gtt";
@@ -75,7 +76,7 @@ export async function getKiteConnectionStatus() {
 }
 
 type KiteSession = {
-  kite: KiteConnect;
+  kite: Connect;
   apiKey: string;
   accessToken: string;
 };
@@ -139,11 +140,17 @@ export async function initiateHoldingsAuth(
     body: body.toString(),
   });
 
-  const payload = (await response.json()) as {
+  let payload: {
     status?: string;
     message?: string;
     data?: { request_id?: string };
   };
+
+  try {
+    payload = (await response.json()) as typeof payload;
+  } catch {
+    throw new Error("Unable to start eDIS authorisation.");
+  }
 
   if (payload.status !== "success" || !payload.data?.request_id) {
     throw new Error(payload.message || "Unable to start eDIS authorisation.");

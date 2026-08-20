@@ -110,9 +110,9 @@ export function KiteSetup({
             id="apiSecret"
             name="apiSecret"
             type="password"
-            required
+            required={!hasCredentials}
             autoComplete="off"
-            placeholder={hasCredentials ? "Enter to update the saved secret" : "Kite API secret"}
+            placeholder={hasCredentials ? "Leave blank to keep the saved secret" : "Kite API secret"}
             className={AUTH_INPUT_CLASS_NAME}
           />
           {saveState?.errors?.apiSecret?.map((error) => (

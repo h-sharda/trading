@@ -59,29 +59,31 @@ export async function saveKiteCredentials(
     errors.apiKey = ["Enter your Kite API key."];
   }
 
-  if (apiSecret.length < 4) {
-    errors.apiSecret = ["Enter your Kite API secret."];
-  }
-
   if (tpin && !TPIN_PATTERN.test(tpin)) {
     errors.tpin = ["CDSL TPIN must be 6 digits."];
   }
 
-  if (errors.apiKey || errors.apiSecret || errors.tpin) {
+  if (errors.apiKey || errors.tpin) {
     return { errors };
   }
 
   try {
     const existing = await prisma.user.findUnique({
       where: { id: currentUser.id },
-      select: { kiteApiKey: true },
+      select: { kiteApiKey: true, kiteApiSecret: true },
     });
+
+    const nextSecret = apiSecret || existing?.kiteApiSecret || "";
+
+    if (nextSecret.length < 4) {
+      return { errors: { apiSecret: ["Enter your Kite API secret."] } };
+    }
 
     await prisma.user.update({
       where: { id: currentUser.id },
       data: {
         kiteApiKey: apiKey,
-        kiteApiSecret: apiSecret,
+        kiteApiSecret: nextSecret,
         ...(tpin ? { cdslTpin: tpin } : {}),
         ...(existing?.kiteApiKey !== apiKey
           ? { kiteAccessToken: null, kiteAccessTokenExpiresAt: null }
