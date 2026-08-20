@@ -69,11 +69,28 @@ After sign-in, save your Kite API key and API secret, then authenticate with Zer
 
 Access tokens are stored per user and treated as expired at 6:00 AM IST. Re-authenticate after that to place trades.
 
+## Production
+
+Requires `DATABASE_URL` in `.env` (or the environment). Then:
+
+```bash
+npm run prod
+```
+
+That installs dependencies, generates the Prisma client, applies migrations, builds, and starts the server **in the background** on port 3000. Override the port with `PORT=8080 npm run prod`.
+
+Logs go to `logs/prod.log`. The process id is written to `.prod.pid`. Stop it with:
+
+```bash
+kill "$(cat .prod.pid)"
+```
+
 ## Scripts
 
 ```bash
 npm run dev      # development server
 npm run build    # production build
-npm run start    # serve the production build
+npm run start    # serve an existing production build
+npm run prod     # install, migrate, build, and start in the background
 npm run lint     # ESLint
 ```

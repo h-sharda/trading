@@ -246,6 +246,32 @@ export function PlaceOrderForm({ defaultHolding }: PlaceOrderFormProps) {
           </>
         )}
 
+        {isGtt ? (
+          <div className="flex flex-col gap-2 sm:col-span-2">
+            <label htmlFor="lastPrice" className={AUTH_LABEL_CLASS_NAME}>
+              Last price
+            </label>
+            <input
+              id="lastPrice"
+              name="lastPrice"
+              type="number"
+              min={0.05}
+              step="0.05"
+              defaultValue={defaultHolding?.lastPrice || ""}
+              className={AUTH_INPUT_CLASS_NAME}
+            />
+            <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+              Optional. Leave blank to use Yahoo Finance (NSE/BSE), then the
+              holding last price.
+            </p>
+            {placeState?.errors?.lastPrice?.map((error) => (
+              <p key={error} className={AUTH_ERROR_CLASS_NAME}>
+                {error}
+              </p>
+            ))}
+          </div>
+        ) : null}
+
         {needsPrice || (isGtt && !isOco) ? (
           <div className="flex flex-col gap-2">
             <label htmlFor="price" className={AUTH_LABEL_CLASS_NAME}>

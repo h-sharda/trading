@@ -15,6 +15,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getAuthenticatedKiteClient, kiteErrorMessage } from "@/lib/kite";
 import { prisma } from "@/lib/prisma";
+import { getYahooLastPrice } from "@/lib/yahoo-ltp";
 
 export type SaveKiteCredentialsState = {
   errors?: {
@@ -105,6 +106,7 @@ export type PlaceOrderState = {
   errors?: {
     tradingsymbol?: string[];
     quantity?: string[];
+    lastPrice?: string[];
     price?: string[];
     triggerPrice?: string[];
     targetPrice?: string[];
@@ -131,18 +133,35 @@ function positivePrice(value: number) {
   return Number.isFinite(value) && value > 0;
 }
 
-async function lastTradedPrice(exchange: Exchanges, tradingsymbol: string) {
-  const kite = await getAuthenticatedKiteClient();
-  const instrument = `${exchange}:${tradingsymbol}`;
-  const quote = await kite.getLTP(instrument);
-  const lastPrice =
-    quote[instrument]?.last_price ?? Object.values(quote)[0]?.last_price;
-
-  if (!positivePrice(lastPrice)) {
-    throw new Error(`Could not fetch last price for ${instrument}.`);
+async function resolveGttLastPrice(
+  kite: Awaited<ReturnType<typeof getAuthenticatedKiteClient>>,
+  exchange: Exchanges,
+  tradingsymbol: string,
+  submittedLastPrice: number,
+) {
+  if (positivePrice(submittedLastPrice)) {
+    return submittedLastPrice;
   }
 
-  return { kite, lastPrice };
+  const yahooLastPrice = await getYahooLastPrice(exchange, tradingsymbol);
+
+  if (yahooLastPrice) {
+    return yahooLastPrice;
+  }
+
+  const holdings = await kite.getHoldings();
+  const holding = holdings.find(
+    (item: { exchange: string; tradingsymbol: string; last_price: number }) =>
+      item.exchange === exchange && item.tradingsymbol === tradingsymbol,
+  );
+
+  if (holding && positivePrice(holding.last_price)) {
+    return holding.last_price;
+  }
+
+  throw new Error(
+    "Could not fetch last price from Yahoo Finance. Enter it manually.",
+  );
 }
 
 export async function submitTrade(
@@ -264,6 +283,7 @@ export async function placeGtt(
   const quantity = Number(readString(formData, "quantity"));
   const price = Number(readString(formData, "price"));
   const triggerPrice = Number(readString(formData, "triggerPrice"));
+  const lastPrice = Number(readString(formData, "lastPrice"));
   const slTrigger = Number(readString(formData, "slTrigger"));
   const slPrice = Number(readString(formData, "slPrice"));
   const targetTrigger = Number(readString(formData, "targetTrigger"));
@@ -324,12 +344,18 @@ export async function placeGtt(
   }
 
   try {
-    const { kite, lastPrice } = await lastTradedPrice(exchange, tradingsymbol);
+    const kite = await getAuthenticatedKiteClient();
+    const resolvedLastPrice = await resolveGttLastPrice(
+      kite,
+      exchange,
+      tradingsymbol,
+      lastPrice,
+    );
     const result = await kite.placeGTT({
       trigger_type: triggerType,
       exchange,
       tradingsymbol,
-      last_price: lastPrice,
+      last_price: resolvedLastPrice,
       trigger_values:
         triggerType === "single" ? [triggerPrice] : [slTrigger, targetTrigger],
       orders:
