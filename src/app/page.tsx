@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { InstallApp } from "@/app/install-app";
 import { KiteSetup } from "@/app/kite-setup";
 import { TradingWorkspace } from "@/app/trading-workspace";
+import { getScheduledOrdersForCurrentUser } from "@/app/actions/scheduled-orders";
 import { getCurrentUser } from "@/lib/auth";
+import { nextIpoOpenParts } from "@/lib/ist";
 import { getGtts, getHoldings, getKiteConnectionStatus } from "@/lib/kite";
 
 export default async function Home({
@@ -19,9 +21,19 @@ export default async function Home({
   const params = await searchParams;
   const kiteFlash = typeof params.kite === "string" ? params.kite : undefined;
   const edisFlash = typeof params.edis === "string" ? params.edis : undefined;
-  const [holdingsResult, gttsResult] = kiteStatus?.isAuthenticated
-    ? await Promise.all([getHoldings(), getGtts()])
-    : [null, null];
+  const kiteExpiresLabel = kiteStatus?.accessTokenExpiresAt
+    ? kiteStatus.accessTokenExpiresAt.toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : null;
+  const nextOpen = nextIpoOpenParts();
+  const [holdingsResult, gttsResult, scheduledOrders] = await Promise.all([
+    kiteStatus?.isAuthenticated ? getHoldings() : Promise.resolve(null),
+    kiteStatus?.isAuthenticated ? getGtts() : Promise.resolve(null),
+    getScheduledOrdersForCurrentUser(),
+  ]);
 
   return (
     <div className="flex flex-1 flex-col px-6 py-10">
@@ -43,12 +55,17 @@ export default async function Home({
           </Link>
         </div>
 
-        {kiteStatus?.isAuthenticated && holdingsResult && gttsResult ? (
+        {kiteStatus ? (
           <TradingWorkspace
-            holdings={holdingsResult.holdings}
-            holdingsError={holdingsResult.error}
-            gtts={gttsResult.gtts}
-            gttsError={gttsResult.error}
+            holdings={holdingsResult?.holdings ?? []}
+            holdingsError={holdingsResult?.error}
+            gtts={gttsResult?.gtts ?? []}
+            gttsError={gttsResult?.error}
+            scheduledOrders={scheduledOrders}
+            defaultScheduleDate={nextOpen.date}
+            defaultScheduleTime={nextOpen.time}
+            kiteIsAuthenticated={Boolean(kiteStatus.isAuthenticated)}
+            kiteExpiresLabel={kiteExpiresLabel}
           />
         ) : null}
 
@@ -59,15 +76,7 @@ export default async function Home({
               hasTpin={kiteStatus.hasTpin}
               apiKey={kiteStatus.apiKey}
               isAuthenticated={kiteStatus.isAuthenticated}
-              accessTokenExpiresLabel={
-                kiteStatus.accessTokenExpiresAt
-                  ? kiteStatus.accessTokenExpiresAt.toLocaleString("en-IN", {
-                      timeZone: "Asia/Kolkata",
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })
-                  : null
-              }
+              accessTokenExpiresLabel={kiteExpiresLabel}
               kiteStatus={kiteFlash}
               edisStatus={edisFlash}
             />

@@ -25,6 +25,38 @@ model User {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   sessions                 Session[]
+  scheduledOrders          ScheduledOrder[]
+}
+
+enum ScheduledOrderStatus {
+  pending
+  armed
+  placed
+  failed
+  cancelled
+}
+
+model ScheduledOrder {
+  id              String               @id @default(cuid())
+  userId          String
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exchange        String
+  tradingsymbol   String
+  quantity        Int
+  product         String               @default("CNC")
+  transactionType String               @default("SELL")
+  orderType       String               @default("MARKET")
+  executeAt       DateTime
+  status          ScheduledOrderStatus @default(pending)
+  orderTag        String?
+  kiteOrderId     String?
+  errorMessage    String?
+  placedAt        DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([status, executeAt])
+  @@index([userId, status])
 }
 
 model Session {

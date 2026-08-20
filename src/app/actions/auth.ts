@@ -80,11 +80,6 @@ export async function signUp(
   const password = readPassword(formData);
   const errors: SignUpFormState["errors"] = {};
 
-  console.log(name);
-  console.log(errors);
-  console.log(password);
-  console.log(email);
-
   if (name.length < 2) {
     errors.name = ["Name must be at least 2 characters."];
   }
@@ -102,7 +97,6 @@ export async function signUp(
   }
 
   try {
-    console.log("REACHED HERE");
     const user = await prisma.user.create({
       data: {
         name,
@@ -110,7 +104,6 @@ export async function signUp(
         passwordHash: await hash(password),
       },
     });
-    console.log("REACHED HERE AFTER CREATION");
 
     await createSession(user.id);
   } catch (error) {

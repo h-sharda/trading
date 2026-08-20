@@ -4,8 +4,10 @@ import { useState } from "react";
 import { EdisForm } from "@/app/edis-form";
 import { GttList } from "@/app/gtt-list";
 import { PlaceOrderForm } from "@/app/place-order-form";
+import { ScheduleIpoSell } from "@/app/schedule-ipo-sell";
 import type { GttDto } from "@/lib/gtt";
 import { holdingNeedsEdis, type HoldingDto } from "@/lib/holding";
+import type { ScheduledOrderDto } from "@/lib/scheduled-order";
 
 const inr = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -35,6 +37,11 @@ type TradingWorkspaceProps = {
   holdingsError?: string;
   gtts: GttDto[];
   gttsError?: string;
+  scheduledOrders: ScheduledOrderDto[];
+  defaultScheduleDate: string;
+  defaultScheduleTime: string;
+  kiteIsAuthenticated: boolean;
+  kiteExpiresLabel: string | null;
 };
 
 export function TradingWorkspace({
@@ -42,8 +49,14 @@ export function TradingWorkspace({
   holdingsError,
   gtts,
   gttsError,
+  scheduledOrders,
+  defaultScheduleDate,
+  defaultScheduleTime,
+  kiteIsAuthenticated,
+  kiteExpiresLabel,
 }: TradingWorkspaceProps) {
   const [selected, setSelected] = useState<HoldingDto | null>(null);
+  const [scheduleHolding, setScheduleHolding] = useState<HoldingDto | null>(null);
   const invested = holdings.reduce(
     (sum, holding) => sum + holding.averagePrice * holding.quantity,
     0,
@@ -56,6 +69,24 @@ export function TradingWorkspace({
 
   return (
     <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.8fr)]">
+      <div className="xl:col-span-2">
+        <ScheduleIpoSell
+          key={
+            scheduleHolding
+              ? `${scheduleHolding.exchange}:${scheduleHolding.tradingsymbol}:${scheduleHolding.quantity}`
+              : "empty-schedule"
+          }
+          orders={scheduledOrders}
+          defaultHolding={scheduleHolding}
+          defaultDate={defaultScheduleDate}
+          defaultTime={defaultScheduleTime}
+          kiteIsAuthenticated={kiteIsAuthenticated}
+          kiteExpiresLabel={kiteExpiresLabel}
+        />
+      </div>
+
+      {kiteIsAuthenticated ? (
+      <>
       <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -173,6 +204,13 @@ export function TradingWorkspace({
                         ) : null}
                         <button
                           type="button"
+                          onClick={() => setScheduleHolding(holding)}
+                          className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-50 dark:hover:bg-zinc-900"
+                        >
+                          Schedule
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setSelected(holding)}
                           className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-50 dark:hover:bg-zinc-900"
                         >
@@ -200,6 +238,8 @@ export function TradingWorkspace({
       <div className="xl:col-span-2">
         <GttList gtts={gtts} error={gttsError} />
       </div>
+      </>
+      ) : null}
     </div>
   );
 }

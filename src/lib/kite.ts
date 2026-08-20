@@ -81,15 +81,9 @@ type KiteSession = {
   accessToken: string;
 };
 
-export async function getKiteSession(): Promise<KiteSession> {
-  const currentUser = await getCurrentUser();
-
-  if (!currentUser) {
-    throw new Error("Sign in before using Kite.");
-  }
-
+export async function getKiteSessionForUser(userId: string): Promise<KiteSession> {
   const user = await prisma.user.findUnique({
-    where: { id: currentUser.id },
+    where: { id: userId },
     select: {
       kiteApiKey: true,
       kiteAccessToken: true,
@@ -112,6 +106,16 @@ export async function getKiteSession(): Promise<KiteSession> {
     apiKey: user.kiteApiKey,
     accessToken: user.kiteAccessToken as string,
   };
+}
+
+export async function getKiteSession(): Promise<KiteSession> {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    throw new Error("Sign in before using Kite.");
+  }
+
+  return getKiteSessionForUser(currentUser.id);
 }
 
 export async function getAuthenticatedKiteClient() {

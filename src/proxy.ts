@@ -7,7 +7,8 @@ const publicPathnames = new Set(["/sign-in", "/sign-up", "/login"]);
 export function proxy(request: NextRequest) {
   const sessionToken = request.cookies.get(SESSION_COOKIE)?.value;
   const { pathname } = request.nextUrl;
-  const isPublicPath = publicPathnames.has(pathname);
+  const isPublicPath =
+    publicPathnames.has(pathname) || pathname.startsWith("/api/cron/");
 
   if (!sessionToken && !isPublicPath) {
     return NextResponse.redirect(new URL("/sign-in", request.url));
