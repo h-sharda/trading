@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { InstallApp } from "@/app/install-app";
 import { KiteSetup } from "@/app/kite-setup";
 import { TradingWorkspace } from "@/app/trading-workspace";
 import { getCurrentUser } from "@/lib/auth";
@@ -25,6 +26,7 @@ export default async function Home({
   return (
     <div className="flex flex-1 flex-col px-6 py-10">
       <main className="mx-auto w-full max-w-6xl">
+        <InstallApp />
         <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <div>
             <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Signed in</p>
