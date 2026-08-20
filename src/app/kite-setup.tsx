@@ -45,7 +45,7 @@ export function KiteSetup({
   const isErrorStatus = kiteStatus && kiteStatus !== "connected";
 
   return (
-    <section className="mt-8 border-t border-zinc-200 pt-8 dark:border-zinc-800">
+    <section>
       <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Kite</p>
       <h2 className="mt-2 text-xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
         Broker connection

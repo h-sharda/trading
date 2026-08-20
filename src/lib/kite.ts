@@ -3,6 +3,7 @@ import "server-only";
 import { KiteConnect } from "kiteconnect";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { HoldingDto } from "@/lib/holding";
 
 const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
 const SIX_AM_IST_MS = 6 * 60 * 60 * 1000;
@@ -17,6 +18,17 @@ export function kiteAccessTokenExpiresAt(now = new Date()) {
   }
 
   return new Date(expiryUtcMs);
+}
+
+export function kiteErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+
+  return fallback;
 }
 
 export function isKiteAccessTokenValid(
@@ -86,4 +98,36 @@ export async function getAuthenticatedKiteClient() {
   const kite = new KiteConnect({ api_key: user.kiteApiKey });
   kite.setAccessToken(user.kiteAccessToken as string);
   return kite;
+}
+
+export type HoldingsResult =
+  | { holdings: HoldingDto[]; error?: undefined }
+  | { holdings: HoldingDto[]; error: string };
+
+export async function getHoldings(): Promise<HoldingsResult> {
+  try {
+    const kite = await getAuthenticatedKiteClient();
+    const holdings = await kite.getHoldings();
+
+    return {
+      holdings: holdings.map((holding) => ({
+        tradingsymbol: holding.tradingsymbol,
+        exchange: holding.exchange,
+        product: holding.product,
+        quantity: holding.quantity,
+        t1Quantity: holding.t1_quantity,
+        usedQuantity: holding.used_quantity,
+        averagePrice: holding.average_price,
+        lastPrice: holding.last_price,
+        pnl: holding.pnl,
+        dayChange: holding.day_change,
+        dayChangePercentage: holding.day_change_percentage,
+      })),
+    };
+  } catch (error) {
+    return {
+      holdings: [],
+      error: kiteErrorMessage(error, "Unable to load holdings."),
+    };
+  }
 }
