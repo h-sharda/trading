@@ -97,7 +97,12 @@ export async function saveKiteCredentials(
   redirect("/");
 }
 
-export async function startKiteLogin() {
+export type ExternalAuthResult = {
+  url?: string;
+  error?: "failed" | "invalid";
+};
+
+export async function startKiteLogin(): Promise<ExternalAuthResult> {
   const currentUser = await getCurrentUser();
 
   if (!currentUser) {
@@ -110,16 +115,16 @@ export async function startKiteLogin() {
   });
 
   if (!user?.kiteApiKey || !user.kiteApiSecret) {
-    redirect("/");
+    return { error: "failed" };
   }
 
   const kite = new KiteConnect({ api_key: user.kiteApiKey });
-  redirect(kite.getLoginURL());
+  return { url: kite.getLoginURL() };
 }
 
 const ISIN_PATTERN = /^[A-Z0-9]{12}$/;
 
-export async function startEdis(formData: FormData) {
+export async function startEdis(formData: FormData): Promise<ExternalAuthResult> {
   const currentUser = await getCurrentUser();
 
   if (!currentUser) {
@@ -133,21 +138,42 @@ export async function startEdis(formData: FormData) {
 
   if (isin || rawQuantity) {
     if (!ISIN_PATTERN.test(isin) || !Number.isInteger(quantity) || quantity < 1) {
-      redirect("/?edis=invalid");
+      return { error: "invalid" };
     }
 
     instruments = [{ isin, quantity }];
   }
 
-  let redirectUrl: string;
-
   try {
-    ({ redirectUrl } = await initiateHoldingsAuth(instruments));
+    const { redirectUrl } = await initiateHoldingsAuth(instruments);
+    return { url: redirectUrl };
   } catch {
-    redirect("/?edis=failed");
+    return { error: "failed" };
+  }
+}
+
+export type StoredTpinResult = {
+  tpin?: string;
+  message?: string;
+};
+
+export async function getStoredCdslTpin(): Promise<StoredTpinResult> {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect("/sign-in");
   }
 
-  redirect(redirectUrl);
+  const user = await prisma.user.findUnique({
+    where: { id: currentUser.id },
+    select: { cdslTpin: true },
+  });
+
+  if (!user?.cdslTpin) {
+    return { message: "No CDSL TPIN is saved." };
+  }
+
+  return { tpin: user.cdslTpin };
 }
 
 export type PlaceOrderState = {

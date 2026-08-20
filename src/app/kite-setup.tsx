@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { CopyTpinButton } from "@/app/copy-tpin-button";
 import { EdisForm } from "@/app/edis-form";
 import {
   saveKiteCredentials,
   startKiteLogin,
   type SaveKiteCredentialsState,
 } from "@/app/actions/kite";
+import { assignTabUrl, openBlankTab, openKnownUrl } from "@/lib/open-external";
 import {
   AUTH_ERROR_CLASS_NAME,
   AUTH_INPUT_CLASS_NAME,
@@ -51,9 +53,51 @@ export function KiteSetup({
     saveKiteCredentials,
     initialSaveState,
   );
+  const [isOpeningLogin, startLoginTransition] = useTransition();
+  const [loginError, setLoginError] = useState<string>();
   const statusMessage = kiteStatus ? kiteStatusMessages[kiteStatus] : undefined;
   const isErrorStatus = kiteStatus && kiteStatus !== "connected";
   const edisMessage = edisStatus ? edisStatusMessages[edisStatus] : undefined;
+
+  function openKiteLogin() {
+    if (apiKey) {
+      const opened = openKnownUrl(
+        `https://kite.zerodha.com/connect/login?api_key=${encodeURIComponent(apiKey)}&v=3`,
+      );
+
+      if (!opened) {
+        setLoginError("Allow pop-ups to open Kite login in a new tab.");
+      }
+
+      return;
+    }
+
+    const tab = openBlankTab();
+
+    startLoginTransition(async () => {
+      setLoginError(undefined);
+      let actionError: string | undefined;
+      const opened = await assignTabUrl(tab, async () => {
+        const result = await startKiteLogin();
+
+        if (result.error || !result.url) {
+          actionError = "Unable to open Kite login. Save credentials and try again.";
+          return undefined;
+        }
+
+        return result.url;
+      });
+
+      if (actionError) {
+        setLoginError(actionError);
+        return;
+      }
+
+      if (!opened) {
+        setLoginError("Allow pop-ups to open Kite login in a new tab.");
+      }
+    });
+  }
 
   return (
     <section>
@@ -140,6 +184,7 @@ export function KiteSetup({
             Optional. Stored on your account only. CDSL still asks for it on their
             page during eDIS — Kite cannot submit TPIN for you.
           </p>
+          {hasTpin ? <CopyTpinButton /> : null}
           {saveState?.errors?.tpin?.map((error) => (
             <p key={error} className={AUTH_ERROR_CLASS_NAME}>
               {error}
@@ -171,18 +216,24 @@ export function KiteSetup({
               <div className="mt-4">
                 <EdisForm />
                 <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                  Opens Zerodha / CDSL so you can authorise demat holdings for CNC
-                  sells. Skip this if DDPI is already active. Authorisation lasts
-                  until 5:30 PM IST.
+                  Opens Zerodha / CDSL in a new tab. Copy your saved TPIN first if
+                  you need it on the CDSL page. Skip this if DDPI is already
+                  active. Authorisation lasts until 5:30 PM IST.
                 </p>
               </div>
             </div>
           ) : (
-            <form action={startKiteLogin}>
-              <button type="submit" className={AUTH_SUBMIT_CLASS_NAME}>
-                Authenticate
+            <div>
+              <button
+                type="button"
+                disabled={isOpeningLogin}
+                onClick={openKiteLogin}
+                className={AUTH_SUBMIT_CLASS_NAME}
+              >
+                {isOpeningLogin ? "Opening…" : "Authenticate"}
               </button>
-            </form>
+              {loginError ? <p className={`mt-2 ${AUTH_ERROR_CLASS_NAME}`}>{loginError}</p> : null}
+            </div>
           )}
         </div>
       ) : null}
