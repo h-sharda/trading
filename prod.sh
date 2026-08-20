@@ -26,13 +26,6 @@ if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 
-echo "Installing dependencies…"
-if [[ -f package-lock.json ]]; then
-  npm ci
-else
-  npm install
-fi
-
 echo "Generating Prisma client…"
 npx prisma generate
 
