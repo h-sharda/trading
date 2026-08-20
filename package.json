@@ -30,6 +30,8 @@
   "allowScripts": {
     "unrs-resolver@1.12.2": true,
     "prisma@7.9.1": true,
-    "@prisma/engines@7.9.1": true
+    "@prisma/engines@7.9.1": true,
+    "argon2@0.45.1": true,
+    "fsevents@2.3.3": true
   }
 }
